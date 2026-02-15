@@ -116,7 +116,7 @@ def respondrAI_pipeline(text):
     hf_result = hf_zero_shot(cleaned, incident_labels)
 
 
-    incident_type = hf_result[0]['label'][0]
+    incident_type = hf_result[0]['label']
 
     # Step 3: Severity Assessment
     priority = severity_agent.assess(cleaned)
