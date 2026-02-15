@@ -22,15 +22,25 @@ HF_HEADERS = {
 def hf_zero_shot(text, labels):
     payload = {
         "inputs": text,
-        "parameters": {"candidate_labels": labels}
+        "parameters": {
+            "candidate_labels": labels
+        }
     }
 
-    response = requests.post(HF_API_URL, headers=HF_HEADERS, json=payload)
+    response = requests.post(
+        HF_API_URL,
+        headers=HF_HEADERS,
+        json=payload,
+        timeout=30
+    )
 
     if response.status_code != 200:
-        return None
+        raise Exception(
+            f"Request failed: {response.status_code}\n{response.text}"
+        )
 
-    return response.json()
+    result = response.json()
+    return result
 
 incident_labels = [
     "fire",
@@ -42,7 +52,6 @@ incident_labels = [
     "building collapse",
     "transport accident"
 ]
-
 # =============================
 # Text Cleaning
 # =============================
