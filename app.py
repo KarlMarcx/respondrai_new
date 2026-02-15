@@ -22,9 +22,7 @@ HF_HEADERS = {
 def hf_zero_shot(text, labels):
     payload = {
         "inputs": text,
-        "parameters": {
-            "candidate_labels": labels
-        }
+        "parameters": {"candidate_labels": labels}
     }
 
     response = requests.post(
@@ -40,6 +38,10 @@ def hf_zero_shot(text, labels):
         )
 
     result = response.json()
+    # wrap dict in list if needed
+    if isinstance(result, dict):
+        result = [result]
+
     return result
 
 incident_labels = [
@@ -97,8 +99,10 @@ dispatch_agent = DispatchAgent()
 # =============================
 def respondrAI_pipeline(text):
 
+    # Step 0: Clean the text
     cleaned = clean_text(text)
 
+    # Step 1: Emergency Detection
     vec = vectorizer.transform([cleaned])
     is_emergency = emergency_model.predict(vec)[0]
 
@@ -108,19 +112,16 @@ def respondrAI_pipeline(text):
             "message": "No emergency detected."
         }
 
+    # Step 2: Incident Classification via HF Zero-Shot
     hf_result = hf_zero_shot(cleaned, incident_labels)
 
-    if hf_result is None:
-        return {
-            "emergency": True,
-            "incident_type": "Unknown (HF API Error)",
-            "priority": "Unknown",
-            "dispatch_to": "Manual Review Required"
-        }
+    # Now safe to use [0]['labels'][0] because hf_zero_shot always returns a list
+    incident_type = hf_result[0]['labels'][0]
 
-    incident_type = hf_result["labels"][0]
-
+    # Step 3: Severity Assessment
     priority = severity_agent.assess(cleaned)
+
+    # Step 4: Dispatch Routing
     unit = dispatch_agent.route(incident_type)
 
     return {
