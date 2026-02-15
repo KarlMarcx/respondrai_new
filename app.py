@@ -115,8 +115,8 @@ def respondrAI_pipeline(text):
     # Step 2: Incident Classification via HF Zero-Shot
     hf_result = hf_zero_shot(cleaned, incident_labels)
 
-    # Now safe to use [0]['labels'][0] because hf_zero_shot always returns a list
-    incident_type = hf_result[0]['labels'][0]
+
+    incident_type = hf_result[0]['label'][0]
 
     # Step 3: Severity Assessment
     priority = severity_agent.assess(cleaned)
