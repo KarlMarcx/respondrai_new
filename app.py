@@ -133,6 +133,7 @@ user_input = st.text_area("Enter a tweet or emergency report:")
 
 if st.button("Analyze Incident"):
 
+
     if user_input.strip() == "":
         st.warning("Please enter text first.")
     else:
@@ -145,3 +146,5 @@ if st.button("Analyze Incident"):
             st.write("**Incident Type:**", result["incident_type"])
             st.write("**Priority Level:**", result["priority"])
             st.write("**Dispatch To:**", result["dispatch_to"])
+
+st.write("HF_TOKEN:", os.getenv("HF_TOKEN"))
