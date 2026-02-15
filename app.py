@@ -1,0 +1,147 @@
+import streamlit as st
+import joblib
+import requests
+import os
+import re
+
+# =============================
+# Load ML Components
+# =============================
+emergency_model = joblib.load("emergency_model.joblib")
+vectorizer = joblib.load("tfidf_vectorizer.joblib")
+
+# =============================
+# HuggingFace Setup
+# =============================
+HF_API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-mnli"
+
+HF_HEADERS = {
+    "Authorization": f"Bearer {os.getenv('HF_TOKEN')}"
+}
+
+def hf_zero_shot(text, labels):
+    payload = {
+        "inputs": text,
+        "parameters": {"candidate_labels": labels}
+    }
+
+    response = requests.post(HF_API_URL, headers=HF_HEADERS, json=payload)
+
+    if response.status_code != 200:
+        return None
+
+    return response.json()
+
+incident_labels = [
+    "fire",
+    "flood",
+    "earthquake",
+    "hurricane",
+    "explosion",
+    "wildfire",
+    "building collapse",
+    "transport accident"
+]
+
+# =============================
+# Text Cleaning
+# =============================
+def clean_text(text):
+    text = text.lower()
+    text = re.sub(r"http\S+", "", text)
+    text = re.sub(r"[^a-zA-Z\s]", "", text)
+    return text
+
+# =============================
+# Severity Agent
+# =============================
+class SeverityAgent:
+    def assess(self, text):
+        high_keywords = ["urgent", "help", "critical", "injured", "dead"]
+        if any(word in text for word in high_keywords):
+            return "High"
+        return "Medium"
+
+severity_agent = SeverityAgent()
+
+# =============================
+# Dispatch Agent
+# =============================
+class DispatchAgent:
+    def route(self, incident_type):
+        routing_map = {
+            "fire": "Fire Department",
+            "flood": "Disaster Response Team",
+            "earthquake": "Disaster Response Team",
+            "hurricane": "Disaster Response Team",
+            "explosion": "Police & Fire Department",
+            "wildfire": "Fire Department",
+            "building collapse": "EMS & Fire Department",
+            "transport accident": "EMS & Police"
+        }
+        return routing_map.get(incident_type, "General Emergency Unit")
+
+dispatch_agent = DispatchAgent()
+
+# =============================
+# Main Pipeline
+# =============================
+def respondrAI_pipeline(text):
+
+    cleaned = clean_text(text)
+
+    vec = vectorizer.transform([cleaned])
+    is_emergency = emergency_model.predict(vec)[0]
+
+    if is_emergency == 0:
+        return {
+            "emergency": False,
+            "message": "No emergency detected."
+        }
+
+    hf_result = hf_zero_shot(cleaned, incident_labels)
+
+    if hf_result is None:
+        return {
+            "emergency": True,
+            "incident_type": "Unknown (HF API Error)",
+            "priority": "Unknown",
+            "dispatch_to": "Manual Review Required"
+        }
+
+    incident_type = hf_result["labels"][0]
+
+    priority = severity_agent.assess(cleaned)
+    unit = dispatch_agent.route(incident_type)
+
+    return {
+        "emergency": True,
+        "incident_type": incident_type,
+        "priority": priority,
+        "dispatch_to": unit
+    }
+
+# =============================
+# Streamlit UI
+# =============================
+st.set_page_config(page_title="RespondrAI", page_icon="🚨")
+
+st.title("🚨 RespondrAI")
+st.markdown("Agentic AI for Emergency Incident Classification & Dispatch")
+
+user_input = st.text_area("Enter a tweet or emergency report:")
+
+if st.button("Analyze Incident"):
+
+    if user_input.strip() == "":
+        st.warning("Please enter text first.")
+    else:
+        result = respondrAI_pipeline(user_input)
+
+        if not result["emergency"]:
+            st.success("✅ No emergency detected.")
+        else:
+            st.error("🚨 Emergency Detected!")
+            st.write("**Incident Type:**", result["incident_type"])
+            st.write("**Priority Level:**", result["priority"])
+            st.write("**Dispatch To:**", result["dispatch_to"])
